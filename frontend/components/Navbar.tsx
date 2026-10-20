@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { clearToken, useAuth } from "@/lib/auth";
+import type { User } from "@/lib/types";
+import { useFetch } from "@/lib/useFetch";
 
 export default function Navbar() {
   const router = useRouter();
+  const { token } = useAuth();
+  const { data: user } = useFetch<User>(token ? "/auth/me" : null);
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("access_token")
-      : null;
+  const isStaff = user?.role === "instructor" || user?.role === "admin";
 
   function logout() {
-    localStorage.removeItem("access_token");
+    clearToken();
     router.push("/login");
   }
 
@@ -28,6 +30,7 @@ export default function Navbar() {
         {token ? (
           <>
             <Link href="/dashboard">Dashboard</Link>
+            {isStaff && <Link href="/instructor">Instructor</Link>}
             <button className="nav-button" onClick={logout}>
               Log out
             </button>

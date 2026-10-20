@@ -1,29 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
-
-interface Course {
-  id: number;
-  title: string;
-  description: string;
-  difficulty: string;
-  instructor_id: number;
-}
+import { useState } from "react";
+import type { Course } from "@/lib/types";
+import { useFetch } from "@/lib/useFetch";
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const { data, error, loading } = useFetch<Course[]>("/courses?limit=100");
 
-  useEffect(() => {
-    apiRequest("/courses")
-      .then(setCourses)
-      .catch((err) => setError(err.message || "Unable to load courses"))
-      .finally(() => setLoading(false));
-  }, []);
+  const courses = data ?? [];
 
   const filtered = courses.filter((course) =>
     `${course.title} ${course.description}`
@@ -44,6 +30,7 @@ export default function CoursesPage() {
       <input
         className="search-input"
         placeholder="Search courses..."
+        aria-label="Search courses"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
@@ -65,10 +52,7 @@ export default function CoursesPage() {
             <span className="badge">{course.difficulty}</span>
             <h3>{course.title}</h3>
             <p>{course.description}</p>
-            <Link
-              className="primary-button"
-              href={`/courses/${course.id}`}
-            >
+            <Link className="primary-button" href={`/courses/${course.id}`}>
               View course →
             </Link>
           </article>

@@ -36,7 +36,8 @@ class LessonProgress(Base):
 
     lesson_id: Mapped[int] = mapped_column(
         ForeignKey("lessons.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     completed: Mapped[bool] = mapped_column(

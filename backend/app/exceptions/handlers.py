@@ -9,6 +9,23 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 logger = logging.getLogger(__name__)
 
 
+def _safe_errors(exc: RequestValidationError) -> list[dict]:
+    """Keep only JSON-safe fields.
+
+    Pydantic's raw errors can contain Exception objects (for custom
+    validators), which would crash JSON serialisation and turn a harmless
+    422 into a 500.
+    """
+    return [
+        {
+            "loc": list(error.get("loc", [])),
+            "msg": str(error.get("msg", "Invalid value")),
+            "type": str(error.get("type", "value_error")),
+        }
+        for error in exc.errors()
+    ]
+
+
 async def http_exception_handler(
     request: Request,
     exc: StarletteHTTPException,
@@ -22,6 +39,8 @@ async def http_exception_handler(
                 "message": str(exc.detail),
             },
         },
+        # Keep headers such as WWW-Authenticate and Retry-After.
+        headers=getattr(exc, "headers", None),
     )
 
 
@@ -33,7 +52,7 @@ async def validation_exception_handler(
         "Validation error on %s %s: %s",
         request.method,
         request.url.path,
-        exc.errors(),
+        _safe_errors(exc),
     )
 
     return JSONResponse(
@@ -43,7 +62,7 @@ async def validation_exception_handler(
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
-                "details": exc.errors(),
+                "details": _safe_errors(exc),
             },
         },
     )

@@ -26,7 +26,8 @@ class Quiz(Base):
 
     course_id: Mapped[int] = mapped_column(
         ForeignKey("courses.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     course = relationship("Course")

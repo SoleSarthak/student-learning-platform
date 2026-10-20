@@ -45,7 +45,8 @@ class Question(Base):
 
     quiz_id: Mapped[int] = mapped_column(
         ForeignKey("quizzes.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     quiz = relationship(

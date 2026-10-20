@@ -2,124 +2,202 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { useState } from "react";
+import ProgressBar from "@/components/ProgressBar";
+import { apiRequest, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import type {
+  Course,
+  Enrollment,
+  ModuleOutline,
+  Progress,
+  Quiz,
+  User,
+} from "@/lib/types";
+import { useFetch } from "@/lib/useFetch";
 
-interface Course {
-  id: number;
-  title: string;
-  description: string;
-  difficulty: string;
-  instructor_id: number;
-}
+export default function CourseDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const courseId = Number(id);
+  const { token } = useAuth();
 
-interface Module {
-  id: number;
-  title: string;
-  order: number;
-  course_id: number;
-}
+  const course = useFetch<Course>(`/courses/${id}`);
+  const outline = useFetch<ModuleOutline[]>(`/courses/${id}/outline`);
+  const quizzes = useFetch<Quiz[]>(`/quizzes/courses/${id}`);
+  const me = useFetch<User>(token ? "/auth/me" : null);
+  const enrollments = useFetch<Enrollment[]>(token ? "/enrollments" : null);
 
-export default function CourseDetailsPage() {
-  const params = useParams<{ id: string }>();
-  const courseId = params.id;
+  const enrolled =
+    enrollments.data?.some((item) => item.course_id === courseId) ?? false;
 
-  const [course, setCourse] = useState<Course | null>(null);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(true);
+  const progress = useFetch<Progress>(
+    enrolled ? `/progress/courses/${id}` : null
+  );
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const courseData = await apiRequest(`/courses/${courseId}`);
-        setCourse(courseData);
+  const isOwner =
+    !!me.data &&
+    !!course.data &&
+    (me.data.role === "admin" || me.data.id === course.data.instructor_id);
 
-        try {
-          const moduleData = await apiRequest(
-            `/courses/${courseId}/modules`
-          );
-          setModules(moduleData);
-        } catch {
-          setModules([]);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load course");
-      } finally {
-        setLoading(false);
-      }
-    }
+  const canOpenContent = enrolled || isOwner;
 
-    load();
-  }, [courseId]);
+  const [enrolling, setEnrolling] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   async function enroll() {
-    setMessage("");
-    setError("");
+    setActionError("");
+    setEnrolling(true);
 
     try {
-      await apiRequest(`/courses/${courseId}/enroll`, {
-        method: "POST",
-      });
-      setMessage("You are now enrolled in this course.");
+      await apiRequest(`/enrollments/courses/${id}`, { method: "POST" });
+      enrollments.reload();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Log in before enrolling in a course."
-      );
+      setActionError(errorMessage(err, "Could not enroll"));
+    } finally {
+      setEnrolling(false);
     }
   }
 
-  if (loading) return <main className="container section">Loading course...</main>;
-  if (error && !course) return <main className="container section"><div className="error">{error}</div></main>;
-  if (!course) return null;
+  if (course.loading) {
+    return (
+      <main className="container section">
+        <p className="muted">Loading course...</p>
+      </main>
+    );
+  }
+
+  if (course.error || !course.data) {
+    return (
+      <main className="container section">
+        <div className="error">{course.error || "Course not found"}</div>
+        <Link href="/courses">← Back to courses</Link>
+      </main>
+    );
+  }
+
+  const completed = new Set(progress.data?.completed_lesson_ids ?? []);
 
   return (
     <main className="container section">
-      <Link href="/courses" className="muted">← All courses</Link>
+      <Link href="/courses" className="muted">
+        ← All courses
+      </Link>
 
-      <section className="hero-panel" style={{ marginTop: 22 }}>
-        <span className="badge">{course.difficulty}</span>
-        <h1>{course.title}</h1>
-        <p>{course.description}</p>
-        <p className="muted">Instructor ID: {course.instructor_id}</p>
+      <header className="dashboard-header">
+        <span className="badge">{course.data.difficulty}</span>
+        <h1>{course.data.title}</h1>
+        <p className="muted">{course.data.description}</p>
+
+        {actionError && <div className="error">{actionError}</div>}
 
         <div className="course-actions">
-          <button className="primary-button" onClick={enroll}>
-            Enroll in course
-          </button>
+          {!token && (
+            <Link className="primary-button" href="/login">
+              Log in to enroll
+            </Link>
+          )}
+
+          {token && !enrolled && !enrollments.loading && (
+            <button
+              className="primary-button"
+              onClick={enroll}
+              disabled={enrolling}
+            >
+              {enrolling ? "Enrolling..." : "Enroll in this course"}
+            </button>
+          )}
+
+          {enrolled && <span className="badge">✓ You are enrolled</span>}
+
+          {isOwner && (
+            <Link
+              className="secondary-button"
+              href={`/instructor/courses/${id}`}
+            >
+              Manage course
+            </Link>
+          )}
         </div>
+      </header>
 
-        {message && <p className="success">{message}</p>}
-        {error && <p className="error">{error}</p>}
-      </section>
+      {progress.data && (
+        <section className="card" style={{ marginBottom: 24 }}>
+          <strong>
+            {progress.data.completed_lessons} of {progress.data.total_lessons}{" "}
+            lessons completed ({Math.round(progress.data.progress_percentage)}%)
+          </strong>
+          <ProgressBar value={progress.data.progress_percentage} />
+        </section>
+      )}
 
-      <section className="section">
-        <h2>Course modules</h2>
+      <section>
+        <h2>Syllabus</h2>
 
-        {modules.length === 0 ? (
-          <div className="empty-state">
-            No modules are available for this course yet.
+        {outline.loading && <p className="muted">Loading syllabus...</p>}
+        {outline.error && <div className="error">{outline.error}</div>}
+
+        {outline.data && outline.data.length === 0 && (
+          <div className="empty-state">No lessons have been added yet.</div>
+        )}
+
+        {outline.data?.map((module) => (
+          <div className="card stack-item" key={module.id}>
+            <h3>{module.title}</h3>
+
+            {module.lessons.length === 0 && (
+              <p className="muted">No lessons in this module yet.</p>
+            )}
+
+            <ul className="lesson-list">
+              {module.lessons.map((lesson) => (
+                <li className="lesson-item" key={lesson.id}>
+                  {canOpenContent ? (
+                    <Link href={`/lessons/${lesson.id}`}>
+                      <span aria-hidden="true">
+                        {completed.has(lesson.id) ? "✅" : "▶️"}
+                      </span>{" "}
+                      {lesson.title}
+                    </Link>
+                  ) : (
+                    <span className="muted">
+                      <span aria-hidden="true">🔒</span> {lesson.title}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
-        ) : (
-          <div className="grid">
-            {modules.map((module) => (
-              <article className="card" key={module.id}>
-                <span className="badge">Module {module.order}</span>
-                <h3>{module.title}</h3>
-                <Link
-                  href={`/lessons/${module.id}`}
-                  className="secondary-button"
-                >
-                  View lessons
-                </Link>
-              </article>
-            ))}
-          </div>
+        ))}
+
+        {!canOpenContent && outline.data && outline.data.length > 0 && (
+          <p className="muted">Enroll to unlock the lessons and quizzes.</p>
         )}
       </section>
+
+      {quizzes.data && quizzes.data.length > 0 && (
+        <section style={{ marginTop: 32 }}>
+          <h2>Quizzes</h2>
+
+          {quizzes.data.map((quiz) => (
+            <div className="card stack-item row" key={quiz.id}>
+              <div>
+                <h3 style={{ margin: 0 }}>{quiz.title}</h3>
+                <p className="muted" style={{ margin: "6px 0 0" }}>
+                  Pass mark: {quiz.passing_score}%
+                </p>
+              </div>
+
+              {canOpenContent ? (
+                <Link className="secondary-button" href={`/quizzes/${quiz.id}`}>
+                  Take quiz
+                </Link>
+              ) : (
+                <span className="muted">🔒 Enroll first</span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
     </main>
   );
 }

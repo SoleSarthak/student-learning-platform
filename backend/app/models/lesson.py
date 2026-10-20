@@ -35,7 +35,8 @@ class Lesson(Base):
 
     module_id: Mapped[int] = mapped_column(
         ForeignKey("modules.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     module = relationship(

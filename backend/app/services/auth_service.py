@@ -12,7 +12,7 @@ def get_user_by_email(
     db: Session,
     email: str
 ) -> User | None:
-
+    print("get_user_by_email")
     statement = select(User).where(
         User.email == email
     )
@@ -46,14 +46,17 @@ def authenticate_user(
     email: str,
     password: str
 ) -> User | None:
+    print("1")
 
     user = get_user_by_email(
         db,
         email.lower()
     )
+    print("2")
 
     if user is None:
         return None
+    print("3")
 
     if not verify_password(
         password,

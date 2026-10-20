@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Boolean
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -17,12 +17,14 @@ class QuizAttempt(Base):
 
     student_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     quiz_id: Mapped[int] = mapped_column(
         ForeignKey("quizzes.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     score: Mapped[int] = mapped_column(
@@ -43,7 +45,7 @@ class QuizAttempt(Base):
     attempted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default="now()"
+        server_default=func.now()
     )
 
     student = relationship("User")

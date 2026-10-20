@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, errorMessage } from "@/lib/api";
+import { setToken } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,15 +19,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await apiRequest("/auth/login", {
+      const data = await apiRequest<{ access_token: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
-      localStorage.setItem("access_token", data.access_token);
+      setToken(data.access_token);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(errorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }

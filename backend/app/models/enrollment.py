@@ -4,7 +4,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    UniqueConstraint
+    UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,13 +36,14 @@ class Enrollment(Base):
 
     course_id: Mapped[int] = mapped_column(
         ForeignKey("courses.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     enrolled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default="now()"
+        server_default=func.now()
     )
 
     student = relationship("User")

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, errorMessage } from "@/lib/api";
+import { setToken } from "@/lib/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -24,11 +25,16 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password }),
       });
 
-      router.push("/login?registered=1");
+      // Log the new user straight in - no second form to fill.
+      const data = await apiRequest<{ access_token: string }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+
+      setToken(data.access_token);
+      router.push("/dashboard");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Registration failed"
-      );
+      setError(errorMessage(err, "Registration failed"));
     } finally {
       setLoading(false);
     }
@@ -37,9 +43,9 @@ export default function RegisterPage() {
   return (
     <main className="form-page">
       <form className="form-card" onSubmit={submit}>
-        <span className="eyebrow">GET STARTED</span>
+        <span className="eyebrow">START LEARNING</span>
         <h1>Create account</h1>
-        <p className="muted">Your learning journey starts here.</p>
+        <p className="muted">Join and begin your first course today.</p>
 
         {error && <div className="error">{error}</div>}
 
@@ -49,6 +55,7 @@ export default function RegisterPage() {
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="name"
+          maxLength={100}
           required
         />
 
@@ -66,12 +73,14 @@ export default function RegisterPage() {
         <input
           id="password"
           type="password"
-          minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="new-password"
+          minLength={8}
+          maxLength={128}
           required
         />
+        <small className="muted">At least 8 characters.</small>
 
         <button className="primary-button" disabled={loading}>
           {loading ? "Creating account..." : "Create account"}

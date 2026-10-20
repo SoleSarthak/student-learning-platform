@@ -1,53 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
-
-interface Certificate {
-  id: number;
-  certificate_number: string;
-  student_id: number;
-  course_id: number;
-  issued_at: string;
-}
+import Link from "next/link";
+import { useRequireAuth } from "@/lib/auth";
+import type { Certificate } from "@/lib/types";
+import { useFetch } from "@/lib/useFetch";
 
 export default function CertificatesPage() {
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const { ready, token } = useRequireAuth();
+  const { data, error, loading } = useFetch<Certificate[]>(
+    token ? "/certificates" : null
+  );
 
-  useEffect(() => {
-    apiRequest("/certificates")
-      .then(setCertificates)
-      .catch((err) => setError(err.message || "Unable to load certificates"))
-      .finally(() => setLoading(false));
-  }, []);
+  if (!ready || !token || loading) {
+    return (
+      <main className="container section">
+        <p className="muted">Loading certificates...</p>
+      </main>
+    );
+  }
+
+  const certificates = data ?? [];
 
   return (
     <main className="container section">
-      <span className="eyebrow">ACHIEVEMENTS</span>
-      <h1>Your certificates</h1>
-      <p className="muted">Your learning achievements in one place.</p>
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">ACHIEVEMENTS</span>
+          <h2>My certificates</h2>
+          <p className="muted">
+            Earned by finishing every lesson and passing every quiz in a course.
+          </p>
+        </div>
+      </div>
 
-      {loading && <p>Loading certificates...</p>}
       {error && <div className="error">{error}</div>}
 
-      {!loading && !error && certificates.length === 0 && (
+      {!error && certificates.length === 0 && (
         <div className="empty-state">
           <h3>No certificates yet</h3>
-          <p>Complete eligible quizzes to earn certificates.</p>
+          <p>Complete a course to earn your first one.</p>
+          <Link className="primary-button" href="/courses">
+            Browse courses
+          </Link>
         </div>
       )}
 
-      <div className="grid" style={{ marginTop: 25 }}>
+      <div className="grid">
         {certificates.map((certificate) => (
           <article className="card" key={certificate.id}>
             <div className="course-icon">🏆</div>
-            <h3>Course #{certificate.course_id}</h3>
-            <p>Certificate: {certificate.certificate_number}</p>
+            <h3>{certificate.course_title}</h3>
             <p>
-              Issued: {new Date(certificate.issued_at).toLocaleDateString()}
+              Certificate no. <strong>{certificate.certificate_number}</strong>
+              <br />
+              Issued {new Date(certificate.issued_at).toLocaleDateString()}
             </p>
+            <Link
+              className="secondary-button"
+              href={`/verify/${certificate.certificate_number}`}
+            >
+              Public verification page
+            </Link>
           </article>
         ))}
       </div>

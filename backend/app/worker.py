@@ -1,6 +1,11 @@
+import logging
+
 from celery import Celery
 
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 celery_app = Celery(
@@ -9,37 +14,38 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
 )
 
+celery_app.conf.update(
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    task_acks_late=True,
+    broker_connection_retry_on_startup=True,
+)
 
-@celery_app.task
+
+@celery_app.task(
+    name="certificates.send_notification",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+)
 def generate_certificate_notification(
     student_email: str,
     certificate_number: str,
-):
-    print(
-        f"Certificate notification generated "
-        f"for {student_email} "
-        f"certificate={certificate_number}"
+) -> dict:
+    """Runs in the background worker after a certificate is issued.
+
+    Today it only logs. Swap the body for a real email provider
+    (SendGrid, SES, SMTP) without touching the API code.
+    """
+    logger.info(
+        "Certificate notification for %s (certificate=%s)",
+        student_email,
+        certificate_number,
     )
 
     return {
         "status": "notification generated",
         "email": student_email,
         "certificate_number": certificate_number,
-    }
-
-
-@celery_app.task
-def process_course_completion(
-    student_id: int,
-    course_id: int,
-):
-    print(
-        f"Processing course completion "
-        f"student={student_id} course={course_id}"
-    )
-
-    return {
-        "status": "course completion processed",
-        "student_id": student_id,
-        "course_id": course_id,
     }
